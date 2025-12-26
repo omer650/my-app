@@ -1,24 +1,57 @@
 version: '3.8'
 
 services:
+  traefik:
+    image: "traefik:v2.10"
+    container_name: "traefik"
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "8090:80"
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+  db:
+    image: "redis:alpine"
+    container_name: "my-db"
+    restart: always
+
   backend:
     build:
       context: ./app/backend
-    ports:
-      - "8000:8000"
+    container_name: "my-backend"
     volumes:
       - ./app/backend/src:/app/src
     environment:
       - ENV=development
+      - REDIS_HOST=db
+    depends_on:
+      - db
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.priority=100"
+      - "traefik.http.routers.backend.rule=Host(`my-app.localhost`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=web"
+      - "traefik.http.middlewares.strip-api.stripprefix.prefixes=/api"
+      - "traefik.http.routers.backend.middlewares=strip-api"
+      - "traefik.http.services.backend.loadbalancer.server.port=8000"
 
   frontend:
     build:
       context: ./app/frontend
-    ports:
-      - "3000:3000"
+    container_name: "my-frontend"
     volumes:
       - ./app/frontend/src:/app/src
-      # הטריק הזה מונע מחיקה של node_modules בגלל ה-Volume שלמעלה
       - /app/node_modules
-    stdin_open: true # נדרש עבור react-scripts בתוך דוקר
+    stdin_open: true
     tty: true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.priority=10"
+      - "traefik.http.routers.frontend.rule=Host(`my-app.localhost`)"
+      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
