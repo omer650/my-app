@@ -1,57 +1,41 @@
 version: '3.8'
 
 services:
-  traefik:
-    image: "traefik:v2.10"
-    container_name: "traefik"
-    command:
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-    ports:
-      - "8090:80"
-      - "8080:8080"
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-
+  # Database Service
   db:
-    image: "redis:alpine"
-    container_name: "my-db"
+    image: postgres:15-alpine
     restart: always
-
-  backend:
-    build:
-      context: ./app/backend
-    container_name: "my-backend"
-    volumes:
-      - ./app/backend/src:/app/src
     environment:
-      - ENV=development
-      - REDIS_HOST=db
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: torahdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  # Backend API
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      DB_HOST: db
+      DB_NAME: torahdb
+      DB_USER: myuser
+      DB_PASS: mypassword
     depends_on:
       - db
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.backend.priority=100"
-      - "traefik.http.routers.backend.rule=Host(`my-app.localhost`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.backend.entrypoints=web"
-      - "traefik.http.middlewares.strip-api.stripprefix.prefixes=/api"
-      - "traefik.http.routers.backend.middlewares=strip-api"
-      - "traefik.http.services.backend.loadbalancer.server.port=8000"
 
+  # Frontend UI
   frontend:
-    build:
-      context: ./app/frontend
-    container_name: "my-frontend"
-    volumes:
-      - ./app/frontend/src:/app/src
-      - /app/node_modules
-    stdin_open: true
-    tty: true
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.frontend.priority=10"
-      - "traefik.http.routers.frontend.rule=Host(`my-app.localhost`)"
-      - "traefik.http.routers.frontend.entrypoints=web"
-      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+    build: ./frontend
+    ports:
+      - "8080:80" # Map host 8080 to container 80 (Nginx)
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+
+volumes:
+  db_data:
