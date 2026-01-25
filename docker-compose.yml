@@ -31,7 +31,7 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "8080:80" # Map host 8080 to container 80 (Nginx)
+      - "80:80" # Map host 80 to container 80 (Nginx)
     environment:
       - REACT_APP_API_URL=http://localhost:8000
     depends_on:

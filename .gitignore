@@ -212,3 +212,4 @@ __marimo__/
 *.tfstate.backup
 *.tfvars
 .terraform.lock.hcl
+infra/terraform/cloudio-key.pem
